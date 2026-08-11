@@ -1,86 +1,68 @@
 package com.example.skinmod.client;
 
-import com.example.skinmod.SkinMod;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.fml.loading.FMLPaths;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public class CustomTextureManager {
-
-    // UUID игрока -> ResourceLocation зарегистрированной текстуры
-    private static final Map<UUID, ResourceLocation> CUSTOM_SKINS = new HashMap<>();
-
-    // UUID игрока -> тип модели ("default" или "slim")
+    public static final Map<UUID, ResourceLocation> PLAYER_TEXTURES = new HashMap<>();
     public static final Map<UUID, String> PLAYER_MODELS = new HashMap<>();
 
-    /**
-     * Загружает .png из папки config, регистрирует как DynamicTexture,
-     * привязывает результат к UUID игрока и сохраняет тип модели.
-     * Должно вызываться ТОЛЬКО в главном потоке клиента.
-     */
-    public static void loadAndApplyTexture(UUID playerUUID, String filename, String modelType) {
-        Path configDir = FMLPaths.CONFIGDIR.get();
-        Path texturePath = configDir.resolve(filename);
-
-        if (!Files.exists(texturePath)) {
-            System.err.println("[SkinMod] Файл текстуры не найден: " + texturePath);
-            return;
-        }
-
-        try (InputStream stream = Files.newInputStream(texturePath)) {
-            NativeImage nativeImage = NativeImage.read(stream);
-
-            DynamicTexture dynamicTexture = new DynamicTexture(nativeImage);
-
-            ResourceLocation textureLocation = new ResourceLocation(
-                    SkinMod.MODID,
-                    "custom_skin_" + playerUUID.toString().replace("-", "")
-            );
-
-            // Регистрируем (или заменяем) текстуру в TextureManager
-            Minecraft.getInstance().getTextureManager().register(textureLocation, dynamicTexture);
-
-            CUSTOM_SKINS.put(playerUUID, textureLocation);
-
-            // Нормализуем и сохраняем тип модели (по умолчанию "default")
-            String normalizedModel = ("slim".equalsIgnoreCase(modelType)) ? "slim" : "default";
-            PLAYER_MODELS.put(playerUUID, normalizedModel);
-
-            System.out.println("[SkinMod] Текстура для " + playerUUID + " загружена: "
-                    + textureLocation + " (модель: " + normalizedModel + ")");
-        } catch (IOException e) {
-            System.err.println("[SkinMod] Ошибка чтения текстуры: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Сбрасывает кастомную текстуру и модель игрока, возвращая ванильный скин.
-     */
-    public static void reset(UUID playerUUID) {
-        CUSTOM_SKINS.remove(playerUUID);
-        PLAYER_MODELS.remove(playerUUID);
-        System.out.println("[SkinMod] Кастомная текстура для " + playerUUID + " сброшена.");
+    public static boolean hasCustomSkin(UUID playerUUID) {
+        return PLAYER_TEXTURES.containsKey(playerUUID);
     }
 
     public static ResourceLocation getCustomSkin(UUID playerUUID) {
-        return CUSTOM_SKINS.get(playerUUID);
+        return PLAYER_TEXTURES.get(playerUUID);
     }
 
-    public static boolean hasCustomSkin(UUID playerUUID) {
-        return CUSTOM_SKINS.containsKey(playerUUID);
+    public static void loadAndApplyTexture(UUID playerUUID, String fileName, String modelType) {
+        File textureFile = new File(FMLPaths.CONFIGDIR.get().toFile(), fileName);
+        if (!textureFile.exists()) {
+            System.err.println("Текстура не найдена в config: " + fileName);
+            return;
+        }
+
+        try (FileInputStream is = new FileInputStream(textureFile)) {
+            NativeImage nativeImage = NativeImage.read(is);
+            DynamicTexture dynamicTexture = new DynamicTexture(nativeImage);
+            
+            String safeName = fileName.toLowerCase().replaceAll("[^a-z0-9_.-]", "");
+            
+            // Генерируем уникальный ID для каждого применения, чтобы сбросить кэш игры
+            ResourceLocation resourceLocation = new ResourceLocation("skinmod", "dynamic/" + safeName + "_" + System.currentTimeMillis());
+            
+            // Если у игрока уже была кастомная текстура, удаляем её из видеопамяти
+            ResourceLocation oldTexture = PLAYER_TEXTURES.get(playerUUID);
+            if (oldTexture != null) {
+                Minecraft.getInstance().getTextureManager().release(oldTexture);
+            }
+            
+            Minecraft.getInstance().getTextureManager().register(resourceLocation, dynamicTexture);
+            
+            PLAYER_TEXTURES.put(playerUUID, resourceLocation);
+            PLAYER_MODELS.put(playerUUID, modelType.equals("slim") ? "slim" : "default");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    public static void removeCustomSkin(UUID playerUUID) {
-        CUSTOM_SKINS.remove(playerUUID);
+    public static void reset(UUID playerUUID) {
+        ResourceLocation oldTexture = PLAYER_TEXTURES.remove(playerUUID);
+        PLAYER_MODELS.remove(playerUUID);
+        
+        // Также очищаем старую текстуру при сбросе
+        if (oldTexture != null) {
+            Minecraft.getInstance().getTextureManager().release(oldTexture);
+        }
     }
 }

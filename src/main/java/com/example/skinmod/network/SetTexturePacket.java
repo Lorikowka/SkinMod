@@ -23,12 +23,10 @@ public class SetTexturePacket {
         this.reset = reset;
     }
 
-    // Удобный конструктор для команды сброса
     public static SetTexturePacket createResetPacket(UUID targetUUID) {
         return new SetTexturePacket(targetUUID, "", "default", true);
     }
 
-    // Кодирование пакета (сервер -> байты)
     public static void encode(SetTexturePacket packet, FriendlyByteBuf buffer) {
         buffer.writeUUID(packet.targetUUID);
         buffer.writeUtf(packet.fileName);
@@ -36,7 +34,6 @@ public class SetTexturePacket {
         buffer.writeBoolean(packet.reset);
     }
 
-    // Декодирование пакета (байты -> клиент)
     public static SetTexturePacket decode(FriendlyByteBuf buffer) {
         UUID uuid = buffer.readUUID();
         String fileName = buffer.readUtf();
@@ -45,12 +42,10 @@ public class SetTexturePacket {
         return new SetTexturePacket(uuid, fileName, modelType, reset);
     }
 
-    // Обработка пакета
     public static void handle(SetTexturePacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
 
         context.enqueueWork(() -> {
-            // Выполняется в главном потоке клиента
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
                 if (packet.reset) {
                     CustomTextureManager.reset(packet.targetUUID);

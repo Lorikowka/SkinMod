@@ -2,7 +2,6 @@ package com.example.skinmod.network;
 
 import com.example.skinmod.SkinMod;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
@@ -29,6 +28,7 @@ public class ModNetwork {
                 SetTexturePacket::handle
         );
     }
+
     public static void sendToAll(Object packet) {
         CHANNEL.send(PacketDistributor.ALL.noArg(), packet);
     }
@@ -36,5 +36,4 @@ public class ModNetwork {
     public static void sendToServer(Object packet) {
         CHANNEL.sendToServer(packet);
     }
-
 }
