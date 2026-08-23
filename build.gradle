@@ -74,9 +74,14 @@ repositories {
     // Добавьте сюда дополнительные репозитории при необходимости
 }
 
+configurations {
+    proguard
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    proguard 'com.guardsquare:proguard-base:7.4.2'
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -110,6 +115,34 @@ tasks.named('processResources', ProcessResources).configure {
         // Включаем текст лицензии в jar (требование MIT при распространении)
         from('LICENSE.txt') { into 'META-INF' }
         finalizedBy 'reobfJar'
+    }
+
+    // ProGuard-обфускация собственных классов мода (опционально, отдельная задача).
+    // Обычный ./gradlew build её не вызывает — чтобы не ломать рабочий релизный jar.
+    // Требует интернет при первом запуске (загрузка ProGuard). Итог: build/libs/skinmod-1.0.0-obf.jar
+    def obfJar = layout.buildDirectory.file("libs/${mod_id}-${mod_version}-obf.jar")
+
+    tasks.register('obfuscate') {
+        dependsOn 'reobfJar'
+        doLast {
+            // reobfJar переименовывает jar на месте, поэтому reobf-версия лежит
+            // по тому же пути, что и выход задачи 'jar' (build/libs/skinmod-<ver>.jar).
+            def injar = tasks.named('jar').get().archiveFile.get().asFile
+            javaexec {
+                classpath = configurations.proguard
+                mainClass = 'proguard.ProGuard'
+                def libList = (configurations.compileClasspath.files + configurations.runtimeClasspath.files) as List
+            def jmods = new File(System.getProperty('java.home'), 'jmods')
+            if (jmods.exists()) libList.add(jmods)
+            def libcp = libList.unique().join(File.pathSeparator)
+                args = [
+                        '-injars', injar.absolutePath,
+                        '-outjars', obfJar.get().asFile.absolutePath,
+                        '-libraryjars', libcp,
+                        '-include', file('proguard.conf').absolutePath
+                ]
+            }
+        }
     }
 
 publishing {

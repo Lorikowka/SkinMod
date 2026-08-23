@@ -77,4 +77,17 @@ mixin {
 ./gradlew build
 ```
 
-   Готовый jar будет в `build/libs/`.
+   Готовый jar будет в `build/libs/` (`skinmod-1.0.0.jar`, уже reobf-переименованный
+   под официальные имена Minecraft).
+
+7. При желании обфусцировать собственные классы мода (ProGuard):
+
+```
+./gradlew obfuscate
+```
+
+   Результат — `build/libs/skinmod-1.0.0-obf.jar`. Эта задача не запускается
+   автоматически при `build`. Важные имена сохраняются (`-keep`): класс-миксин,
+   `SkinData` (Gson по именам полей), классы с аннотациями `@Mod`/`@Mod.EventBusSubscriber`,
+   а также все ресурсы (`mods.toml`, `skinmod.mixins.json`, `skinmod.refmap.json`).
+   Перед релизом обфусцированный jar нужно проверить в игре.
