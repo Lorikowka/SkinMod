@@ -1,0 +1,10 @@
+{
+  "commands.skinmod.set.success": "Скин для %s обновлён (файл: %s, модель: %s).",
+  "commands.skinmod.set.invalid": "Некорректное имя файла. Укажите только имя файла с расширением .png (без путей).",
+  "commands.skinmod.reset.success": "Скин для %s сброшен на стандартный.",
+  "commands.skinmod.list.header": "Назначенные скины:",
+  "commands.skinmod.list.entry": "%s → %s (%s)",
+  "commands.skinmod.list.empty": "Нет назначенных скинов.",
+  "commands.skinmod.list.player": "Скин для %s: %s (%s)",
+  "commands.skinmod.list.player.none": "У %s нет кастомного скина."
+}

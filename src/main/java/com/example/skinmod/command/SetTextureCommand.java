@@ -7,91 +7,177 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import net.minecraft.ChatFormatting;
+import net.minecraft.SharedConstants;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.ProfileCache;
+import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.network.PacketDistributor;
+
+import java.io.File;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class SetTextureCommand {
 
+    private static final SuggestionProvider<CommandSourceStack> MODEL_SUGGESTIONS = (context, builder) -> {
+        builder.suggest("default");
+        builder.suggest("slim");
+        return builder.buildFuture();
+    };
+
+    private static final SuggestionProvider<CommandSourceStack> FILENAME_SUGGESTIONS = (context, builder) -> {
+        File dir = getSkinsDirForSuggestions();
+        if (dir.isDirectory()) {
+            File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".png"));
+            if (files != null) {
+                for (File f : files) {
+                    builder.suggest(f.getName());
+                }
+            }
+        }
+        return builder.buildFuture();
+    };
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
-                Commands.literal("settexture")
+                Commands.literal("skin")
                         .requires(source -> source.hasPermission(2))
-                        .then(Commands.argument("target", EntityArgument.player())
-                                .then(Commands.argument("filename", StringArgumentType.string())
-                                        .executes(context -> executeSetTexture(context, "default"))
-                                        .then(Commands.argument("model", StringArgumentType.word())
-                                                .executes(context -> executeSetTexture(
-                                                        context,
-                                                        StringArgumentType.getString(context, "model")
-                                                ))
+                        .then(Commands.literal("set")
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .then(Commands.argument("filename", StringArgumentType.word())
+                                                .suggests(FILENAME_SUGGESTIONS)
+                                                .executes(context -> executeSet(context, "default"))
+                                                .then(Commands.argument("model", StringArgumentType.word())
+                                                        .suggests(MODEL_SUGGESTIONS)
+                                                        .executes(context -> executeSet(
+                                                                context,
+                                                                StringArgumentType.getString(context, "model")
+                                                        ))
+                                                )
                                         )
                                 )
                         )
-        );
-
-        dispatcher.register(
-                Commands.literal("resettexture")
-                        .requires(source -> source.hasPermission(2))
-                        .then(Commands.argument("target", EntityArgument.player())
-                                .executes(SetTextureCommand::executeReset)
+                        .then(Commands.literal("reset")
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .executes(SetTextureCommand::executeReset)
+                                )
+                        )
+                        .then(Commands.literal("list")
+                                .executes(context -> executeList(context, null))
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .executes(context -> executeList(
+                                                context,
+                                                EntityArgument.getPlayer(context, "target")
+                                        ))
+                                )
                         )
         );
     }
 
-        private static int executeSetTexture(CommandContext<CommandSourceStack> context, String model) throws CommandSyntaxException {
-                ServerPlayer target = EntityArgument.getPlayer(context, "target");
-                String filename = StringArgumentType.getString(context, "filename");
+    private static int executeSet(CommandContext<CommandSourceStack> context, String model) throws CommandSyntaxException {
+        ServerPlayer target = EntityArgument.getPlayer(context, "target");
+        String filename = StringArgumentType.getString(context, "filename");
 
-                // Валидация имени файла — защита от Path Traversal
-                if (!isValidFilename(filename)) {
-                context.getSource().sendFailure(
-                        Component.literal("Некорректное имя файла. Используйте только имя файла с расширением .png")
-                );
+        if (!ServerSkinManager.isValidFilename(filename)) {
+            context.getSource().sendFailure(
+                    Component.translatable("commands.skinmod.set.invalid").withStyle(ChatFormatting.RED)
+            );
             return 0;
         }
 
         String normalizedModel = "slim".equalsIgnoreCase(model) ? "slim" : "default";
 
-        // Отправляем пакет клиентам
         SetTexturePacket packet = new SetTexturePacket(target.getUUID(), filename, normalizedModel, false);
         ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(), packet);
 
-        // Сохраняем новую текстуру в базу сервера, используя правильные переменные
         ServerSkinManager.SERVER_SKINS.put(target.getUUID(), new ServerSkinManager.SkinData(filename, normalizedModel));
         ServerSkinManager.save();
 
-        context.getSource().sendSuccess(Component.literal("Текстура для " + target.getName().getString() + " обновлена (модель: " + normalizedModel + ")."), true);
+        context.getSource().sendSuccess(
+                Component.translatable("commands.skinmod.set.success",
+                        target.getName().getString(), filename, normalizedModel).withStyle(ChatFormatting.GREEN),
+                true
+        );
         return 1;
     }
+
     private static int executeReset(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer target = EntityArgument.getPlayer(context, "target");
 
-        // Удаляем текстуру из базы
-        com.example.skinmod.ServerSkinManager.SERVER_SKINS.remove(target.getUUID());
-        com.example.skinmod.ServerSkinManager.save();
+        ServerSkinManager.SERVER_SKINS.remove(target.getUUID());
+        ServerSkinManager.save();
 
-        // Отправляем пакет на сброс
-        ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.ALL.noArg(), 
-            new SetTexturePacket(target.getUUID(), "", "default", true));
+        ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                new SetTexturePacket(target.getUUID(), "", "default", true));
 
-        context.getSource().sendSuccess(Component.literal("Текстура для " + target.getName().getString() + " сброшена на стандартную."), true);
+        context.getSource().sendSuccess(
+                Component.translatable("commands.skinmod.reset.success",
+                        target.getName().getString()).withStyle(ChatFormatting.GREEN),
+                true
+        );
         return 1;
     }
 
+    private static int executeList(CommandContext<CommandSourceStack> context, ServerPlayer specific) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
+
+        if (specific != null) {
+            ServerSkinManager.SkinData data = ServerSkinManager.SERVER_SKINS.get(specific.getUUID());
+            if (data == null) {
+                source.sendSuccess(Component.translatable("commands.skinmod.list.player.none",
+                        specific.getName().getString()).withStyle(ChatFormatting.YELLOW), false);
+            } else {
+                source.sendSuccess(Component.translatable("commands.skinmod.list.player",
+                        specific.getName().getString(), data.fileName, data.modelType).withStyle(ChatFormatting.GREEN), false);
+            }
+            return 1;
+        }
+
+        if (ServerSkinManager.SERVER_SKINS.isEmpty()) {
+            source.sendSuccess(Component.translatable("commands.skinmod.list.empty")
+                    .withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+
+        source.sendSuccess(Component.translatable("commands.skinmod.list.header")
+                .withStyle(ChatFormatting.GREEN), false);
+
+        ProfileCache cache = source.getServer().getProfileCache();
+        for (Map.Entry<UUID, ServerSkinManager.SkinData> entry : ServerSkinManager.SERVER_SKINS.entrySet()) {
+            String name = resolveName(cache, entry.getKey());
+            ServerSkinManager.SkinData data = entry.getValue();
+            source.sendSuccess(Component.translatable("commands.skinmod.list.entry",
+                    name, data.fileName, data.modelType), false);
+        }
+        return 1;
+    }
+
+    private static String resolveName(ProfileCache cache, UUID uuid) {
+        if (cache != null) {
+            java.util.Optional<String> name = cache.getNameByUuid(uuid);
+            if (name.isPresent()) return name.get();
+        }
+        return uuid.toString();
+    }
+
     /**
-     * Проверяет, что имя файла безопасно:
-     * - без .. (path traversal)
-     * - без / и \\ (разделители путей)
-     * - заканчивается на .png
+     * Server-safe вычисление папки скинов для подсказок имён файлов.
+     * Сервер не имеет доступа к файлам клиентов на выделенном сервере, поэтому
+     * просто смотрит локальную папку versions/<version>/skins в своём GAMEDIR.
+     * В одиночной игре/LAN папки совпадают с клиентскими — подсказки работают.
      */
-    private static boolean isValidFilename(String filename) {
-        if (filename == null || filename.isEmpty()) return false;
-        if (filename.contains("..")) return false;
-        if (filename.contains("/") || filename.contains("\\")) return false;
-        return filename.toLowerCase().endsWith(".png");
+    private static File getSkinsDirForSuggestions() {
+        String version = SharedConstants.getCurrentVersion().getName();
+        return new File(FMLPaths.GAMEDIR.get().toFile(),
+                "versions" + File.separator + version + File.separator + "skins");
     }
 }

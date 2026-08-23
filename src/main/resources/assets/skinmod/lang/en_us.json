@@ -1,0 +1,10 @@
+{
+  "commands.skinmod.set.success": "Skin for %s updated (file: %s, model: %s).",
+  "commands.skinmod.set.invalid": "Invalid file name. Use only a file name ending with .png (no paths).",
+  "commands.skinmod.reset.success": "Skin for %s reset to default.",
+  "commands.skinmod.list.header": "Assigned custom skins:",
+  "commands.skinmod.list.entry": "%s → %s (%s)",
+  "commands.skinmod.list.empty": "No custom skins assigned.",
+  "commands.skinmod.list.player": "Custom skin for %s: %s (%s)",
+  "commands.skinmod.list.player.none": "%s has no custom skin."
+}
