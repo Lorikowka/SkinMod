@@ -4,6 +4,7 @@ import com.example.skinmod.SkinMod;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import net.minecraft.SharedConstants;
 import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.*;
@@ -18,6 +19,7 @@ public class ServerSkinManager {
     private static final File SAVE_FILE = new File(FMLPaths.CONFIGDIR.get().toFile(), "skinmod_players.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Type TYPE = new TypeToken<Map<UUID, SkinData>>(){}.getType();
+    private static final long MAX_SKIN_SIZE = 1024L * 1024L; // 1 MB на файл — защита от огромных пакетов
 
     public static class SkinData {
         public String fileName;
@@ -74,6 +76,56 @@ public class ServerSkinManager {
             // ловим широко, чтобы мод не падал при старте.
             SkinMod.LOGGER.error("Failed to load skin data from {}, starting with empty data", SAVE_FILE, e);
             SERVER_SKINS.clear();
+        }
+    }
+
+    /**
+     * Папка со скинами на стороне сервера:
+     * {@code <gameDir>/versions/<versionId>/skins/}.
+     * Сервер хранит здесь PNG-файлы и рассылает их содержимое клиентам,
+     * поэтому мод работает в мультиплеере без локальных файлов у клиентов.
+     */
+    public static File getSkinsDir() {
+        String version = SharedConstants.getCurrentVersion().getName();
+        File dir = new File(FMLPaths.GAMEDIR.get().toFile(),
+                "versions" + File.separator + version + File.separator + "skins");
+        if (!dir.exists() && !dir.mkdirs()) {
+            SkinMod.LOGGER.warn("Could not create server skins directory: {}", dir);
+        }
+        return dir;
+    }
+
+    /**
+     * Читает байты скина с сервера. Возвращает null при ошибке (нет файла,
+     * выход за пределы папки, слишком большой размер, ошибка чтения).
+     */
+    public static byte[] readSkinBytes(String fileName) {
+        if (!isValidFilename(fileName)) return null;
+        File skinsDir = getSkinsDir();
+        File file = new File(skinsDir, fileName);
+        try {
+            if (!file.exists()) {
+                SkinMod.LOGGER.warn("Skin file not found on server: {}", file);
+                return null;
+            }
+            // Канонический путь файла должен начинаться с канонического пути папки скинов.
+            String canonicalFile = file.getCanonicalPath();
+            String canonicalDir = skinsDir.getCanonicalPath() + File.separator;
+            if (!canonicalFile.startsWith(canonicalDir)) {
+                SkinMod.LOGGER.warn("Rejected skin file outside skins directory: {}", fileName);
+                return null;
+            }
+            long size = file.length();
+            if (size > MAX_SKIN_SIZE) {
+                SkinMod.LOGGER.warn("Skin file too large ({} bytes), limit is {}: {}", size, MAX_SKIN_SIZE, fileName);
+                return null;
+            }
+            try (InputStream in = new FileInputStream(file)) {
+                return in.readAllBytes();
+            }
+        } catch (IOException e) {
+            SkinMod.LOGGER.error("Failed to read skin file: {}", fileName, e);
+            return null;
         }
     }
 }

@@ -11,14 +11,11 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.ChatFormatting;
-import net.minecraft.SharedConstants;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.ProfileCache;
-import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.network.PacketDistributor;
 
 import java.io.File;
@@ -35,7 +32,7 @@ public class SetTextureCommand {
     };
 
     private static final SuggestionProvider<CommandSourceStack> FILENAME_SUGGESTIONS = (context, builder) -> {
-        File dir = getSkinsDirForSuggestions();
+        File dir = ServerSkinManager.getSkinsDir();
         if (dir.isDirectory()) {
             File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".png"));
             if (files != null) {
@@ -96,7 +93,15 @@ public class SetTextureCommand {
 
         String normalizedModel = "slim".equalsIgnoreCase(model) ? "slim" : "default";
 
-        SetTexturePacket packet = new SetTexturePacket(target.getUUID(), filename, normalizedModel, false);
+        byte[] imageData = ServerSkinManager.readSkinBytes(filename);
+        if (imageData == null) {
+            context.getSource().sendFailure(
+                    Component.translatable("commands.skinmod.set.filenotfound", filename).withStyle(ChatFormatting.RED)
+            );
+            return 0;
+        }
+
+        SetTexturePacket packet = new SetTexturePacket(target.getUUID(), filename, normalizedModel, false, imageData);
         ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(), packet);
 
         ServerSkinManager.SERVER_SKINS.put(target.getUUID(), new ServerSkinManager.SkinData(filename, normalizedModel));
@@ -117,7 +122,7 @@ public class SetTextureCommand {
         ServerSkinManager.save();
 
         ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
-                new SetTexturePacket(target.getUUID(), "", "default", true));
+                SetTexturePacket.createResetPacket(target.getUUID()));
 
         context.getSource().sendSuccess(
                 Component.translatable("commands.skinmod.reset.success",
@@ -151,9 +156,8 @@ public class SetTextureCommand {
         source.sendSuccess(Component.translatable("commands.skinmod.list.header")
                 .withStyle(ChatFormatting.GREEN), false);
 
-        ProfileCache cache = source.getServer().getProfileCache();
         for (Map.Entry<UUID, ServerSkinManager.SkinData> entry : ServerSkinManager.SERVER_SKINS.entrySet()) {
-            String name = resolveName(cache, entry.getKey());
+            String name = resolveName(source, entry.getKey());
             ServerSkinManager.SkinData data = entry.getValue();
             source.sendSuccess(Component.translatable("commands.skinmod.list.entry",
                     name, data.fileName, data.modelType), false);
@@ -161,23 +165,9 @@ public class SetTextureCommand {
         return 1;
     }
 
-    private static String resolveName(ProfileCache cache, UUID uuid) {
-        if (cache != null) {
-            java.util.Optional<String> name = cache.getNameByUuid(uuid);
-            if (name.isPresent()) return name.get();
-        }
+    private static String resolveName(CommandSourceStack source, UUID uuid) {
+        ServerPlayer online = source.getServer().getPlayerList().getPlayer(uuid);
+        if (online != null) return online.getName().getString();
         return uuid.toString();
-    }
-
-    /**
-     * Server-safe вычисление папки скинов для подсказок имён файлов.
-     * Сервер не имеет доступа к файлам клиентов на выделенном сервере, поэтому
-     * просто смотрит локальную папку versions/<version>/skins в своём GAMEDIR.
-     * В одиночной игре/LAN папки совпадают с клиентскими — подсказки работают.
-     */
-    private static File getSkinsDirForSuggestions() {
-        String version = SharedConstants.getCurrentVersion().getName();
-        return new File(FMLPaths.GAMEDIR.get().toFile(),
-                "versions" + File.separator + version + File.separator + "skins");
     }
 }

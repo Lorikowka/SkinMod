@@ -1,6 +1,7 @@
 {
   "commands.skinmod.set.success": "Скин для %s обновлён (файл: %s, модель: %s).",
   "commands.skinmod.set.invalid": "Некорректное имя файла. Укажите только имя файла с расширением .png (без путей).",
+  "commands.skinmod.set.filenotfound": "Файл скина не найден на сервере: %s.",
   "commands.skinmod.reset.success": "Скин для %s сброшен на стандартный.",
   "commands.skinmod.list.header": "Назначенные скины:",
   "commands.skinmod.list.entry": "%s → %s (%s)",
