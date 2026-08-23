@@ -89,8 +89,12 @@ public class ServerSkinManager {
         String version = SharedConstants.getCurrentVersion().getName();
         File dir = new File(FMLPaths.GAMEDIR.get().toFile(),
                 "versions" + File.separator + version + File.separator + "skins");
-        if (!dir.exists() && !dir.mkdirs()) {
-            SkinMod.LOGGER.warn("Could not create server skins directory: {}", dir);
+        if (!dir.exists()) {
+            if (dir.mkdirs()) {
+                SkinMod.LOGGER.info("Created skin storage directory: {}", dir.getAbsolutePath());
+            } else {
+                SkinMod.LOGGER.warn("Could not create skin storage directory: {}", dir.getAbsolutePath());
+            }
         }
         return dir;
     }

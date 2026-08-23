@@ -42,6 +42,14 @@ minecraft {
 
         client {
             property 'forge.enabledGameTestNamespaces', mod_id
+
+            // Уникальный ник и UUID при каждом запуске runClient. Удобно для тестов
+            // мультиплеера между несколькими клиентами на одной машине (каждый
+            // запуск ./gradlew runClient получает новое имя, т.к. build.gradle
+            // пересчитывается заново).
+            def devUuid = java.util.UUID.randomUUID().toString()
+            args '--username', "Dev${devUuid.substring(0, 5)}"
+            args '--uuid', devUuid
         }
 
         server {

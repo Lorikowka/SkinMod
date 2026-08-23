@@ -21,6 +21,7 @@ public class SkinMod {
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.register(this);
         ServerSkinManager.load();
+        SkinMod.LOGGER.info("SkinMod skin storage directory: {}", ServerSkinManager.getSkinsDir().getAbsolutePath());
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
