@@ -1,12 +1,12 @@
 modLoader="javafml"
 loaderVersion="[43,)"
-license="MIT"
+license="${mod_license}"
 
 [[mods]]
 modId="skinmod"
-version="1.0.0"
+version="${mod_version}"
 displayName="Skin Mod"
-description='''Мод для смены скина прямо в игре с помощью команд'''
+description='''${mod_description}'''
 
 [[dependencies.skinmod]]
  modId="forge"

@@ -94,21 +94,23 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
-tasks.named('jar', Jar).configure {
-    manifest {
-        attributes([
-            'Specification-Title'     : mod_id,
-            'Specification-Vendor'    : mod_authors,
-            'Specification-Version'   : '1',
-            'Implementation-Title'    : project.name,
-            'Implementation-Version'  : project.jar.archiveVersion,
-            'Implementation-Vendor'   : mod_authors,
-            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-            'MixinConfigs'            : 'skinmod.mixins.json'  // <-- ОБЯЗАТЕЛЬНО
-        ])
+    tasks.named('jar', Jar).configure {
+        manifest {
+            attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                'MixinConfigs'            : 'skinmod.mixins.json'  // <-- ОБЯЗАТЕЛЬНО
+            ])
+        }
+        // Включаем текст лицензии в jar (требование MIT при распространении)
+        from('LICENSE.txt') { into 'META-INF' }
+        finalizedBy 'reobfJar'
     }
-    finalizedBy 'reobfJar'
-}
 
 publishing {
     publications {
