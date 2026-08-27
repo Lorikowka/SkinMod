@@ -3,12 +3,7 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
-    id 'org.spongepowered.mixin' version '0.7.+'
-}
-
-mixin {
-    add sourceSets.main, "skinmod.refmap.json"
-    config "skinmod.mixins.json"
+    id 'org.spongepowered.mixin' version '0.7.38'
 }
 
 version = mod_version
@@ -80,11 +75,14 @@ configurations {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     proguard 'com.guardsquare:proguard-base:7.4.2'
+    // Mixin API от Forge уже в класспасе; A-P и refmap настраивает плагин
+    // 'org.spongepowered.mixin' (см. блок mixin ниже) — вручную процессор
+    // не подключаем, чтобы не было конфликтов и ошибок карт обфускации.
 }
 
 tasks.named('processResources', ProcessResources).configure {
+    // (refmap в jar кладёт плагин mixin — отдельная зависимость не нужна)
     var replaceProperties = [
         minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
         forge_version: forge_version, forge_version_range: forge_version_range,
@@ -109,7 +107,9 @@ tasks.named('processResources', ProcessResources).configure {
                 'Implementation-Version'  : project.jar.archiveVersion,
                 'Implementation-Vendor'   : mod_authors,
                 'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-                'MixinConfigs'            : 'skinmod.mixins.json'  // <-- ОБЯЗАТЕЛЬНО
+                // Объявляем конфиг миксинов в манифесте jar: без этого FML не обнаружит
+                // AbstractClientPlayerMixin в собранном/reobf jar, и скин не применится.
+                'MixinConfigs': 'skinmod.mixins.json'
             ])
         }
         // Включаем текст лицензии в jar (требование MIT при распространении)
@@ -160,4 +160,12 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+// Конфигурация Mixin: генерирует skinmod.refmap.json и включает A-P.
+// 'add' кладёт refmap в ресурсы так, чтобы он попал в итоговый jar;
+// 'config' указывает на конфиг миксинов mod.
+mixin {
+    add sourceSets.main, "skinmod.refmap.json"
+    config "skinmod.mixins.json"
 }

@@ -1,6 +1,7 @@
 package com.example.skinmod.command;
 
 import com.example.skinmod.ServerSkinManager;
+import com.example.skinmod.SkinMod;
 import com.example.skinmod.network.ModNetwork;
 import com.example.skinmod.network.SetTexturePacket;
 import com.mojang.brigadier.CommandDispatcher;
@@ -50,7 +51,7 @@ public class SetTextureCommand {
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("set")
                                 .then(Commands.argument("target", EntityArgument.player())
-                                        .then(Commands.argument("filename", StringArgumentType.word())
+                                        .then(Commands.argument("filename", StringArgumentType.string())
                                                 .suggests(FILENAME_SUGGESTIONS)
                                                 .executes(context -> executeSet(context, "default"))
                                                 .then(Commands.argument("model", StringArgumentType.word())
@@ -82,8 +83,11 @@ public class SetTextureCommand {
 
     private static int executeSet(CommandContext<CommandSourceStack> context, String model) throws CommandSyntaxException {
         ServerPlayer target = EntityArgument.getPlayer(context, "target");
-        String filename = StringArgumentType.getString(context, "filename");
+        String rawFilename = StringArgumentType.getString(context, "filename");
 
+        // Имя файла может быть указано как "steve" или "steve.png" —
+        // автоматически добавляем расширение, если его забыли.
+        String filename = rawFilename.toLowerCase().endsWith(".png") ? rawFilename : rawFilename + ".png";
         if (!ServerSkinManager.isValidFilename(filename)) {
             context.getSource().sendFailure(
                     Component.translatable("commands.skinmod.set.invalid").withStyle(ChatFormatting.RED)
@@ -100,6 +104,9 @@ public class SetTextureCommand {
             );
             return 0;
         }
+
+        SkinMod.LOGGER.info("[SkinMod] Sending skin '{}' ({} B, model={}) to all clients for {}",
+                filename, imageData.length, normalizedModel, target.getUUID());
 
         SetTexturePacket packet = new SetTexturePacket(target.getUUID(), filename, normalizedModel, false, imageData);
         ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(), packet);

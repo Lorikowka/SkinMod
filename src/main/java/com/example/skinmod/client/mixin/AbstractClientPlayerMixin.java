@@ -1,5 +1,6 @@
 package com.example.skinmod.client.mixin;
 
+import com.example.skinmod.SkinMod;
 import com.example.skinmod.client.CustomTextureManager;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.resources.ResourceLocation;
@@ -20,6 +21,7 @@ public abstract class AbstractClientPlayerMixin {
 
         if (CustomTextureManager.hasCustomSkin(playerUUID)) {
             ResourceLocation custom = CustomTextureManager.getCustomSkin(playerUUID);
+            SkinMod.LOGGER.info("[SkinMod][Mixin] getSkinTextureLocation() overridden for {} -> {}", playerUUID, custom);
             cir.setReturnValue(custom);
         }
     }
@@ -31,6 +33,7 @@ public abstract class AbstractClientPlayerMixin {
 
         String customModel = CustomTextureManager.PLAYER_MODELS.get(playerUUID);
         if (customModel != null) {
+            SkinMod.LOGGER.info("[SkinMod][Mixin] getModelName() overridden for {} -> {}", playerUUID, customModel);
             cir.setReturnValue(customModel);
         }
     }

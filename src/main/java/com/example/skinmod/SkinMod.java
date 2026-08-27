@@ -17,6 +17,7 @@ public class SkinMod {
     public static final String MODID = "skinmod";
     public static final Logger LOGGER = LoggerFactory.getLogger(MODID);
 
+    @SuppressWarnings("removal")
     public SkinMod() {
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.register(this);

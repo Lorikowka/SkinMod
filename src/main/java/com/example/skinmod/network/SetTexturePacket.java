@@ -1,5 +1,6 @@
 package com.example.skinmod.network;
 
+import com.example.skinmod.SkinMod;
 import com.example.skinmod.client.CustomTextureManager;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
@@ -50,6 +51,8 @@ public class SetTexturePacket {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+                SkinMod.LOGGER.info("[SkinMod] Packet received on client for target {} (reset={}, file={})",
+                        packet.targetUUID, packet.reset, packet.fileName);
                 if (packet.reset) {
                     CustomTextureManager.reset(packet.targetUUID);
                 } else {

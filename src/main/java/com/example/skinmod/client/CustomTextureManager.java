@@ -30,13 +30,15 @@ public class CustomTextureManager {
      */
     public static void loadAndApplyTexture(UUID playerUUID, String fileName, String modelType, byte[] imageData) {
         if (imageData == null || imageData.length == 0) {
-            SkinMod.LOGGER.warn("No skin data received for {}", playerUUID);
+            SkinMod.LOGGER.warn("[SkinMod] No skin data received for {}", playerUUID);
             return;
         }
+        SkinMod.LOGGER.info("[SkinMod] Applying skin '{}' ({} B) to client player {}", fileName, imageData.length, playerUUID);
 
         NativeImage nativeImage = null;
         try (ByteArrayInputStream is = new ByteArrayInputStream(imageData)) {
             nativeImage = NativeImage.read(is);
+            SkinMod.LOGGER.info("[SkinMod] Decoded PNG for {} ({}x{})", playerUUID, nativeImage.getWidth(), nativeImage.getHeight());
             DynamicTexture dynamicTexture = new DynamicTexture(nativeImage);
 
             String safeName = (fileName != null ? fileName : playerUUID.toString())
@@ -52,11 +54,13 @@ public class CustomTextureManager {
             }
 
             Minecraft.getInstance().getTextureManager().register(resourceLocation, dynamicTexture);
+            SkinMod.LOGGER.info("[SkinMod] Registered texture {} for {}", resourceLocation, playerUUID);
 
             PLAYER_TEXTURES.put(playerUUID, resourceLocation);
             PLAYER_MODELS.put(playerUUID, modelType.equals("slim") ? "slim" : "default");
+            SkinMod.LOGGER.info("[SkinMod] Custom skin active for {}: {}", playerUUID, resourceLocation);
         } catch (IOException e) {
-            SkinMod.LOGGER.error("Failed to decode skin for {}", playerUUID, e);
+            SkinMod.LOGGER.error("[SkinMod] Failed to decode skin for {}", playerUUID, e);
             // Освобождаем изображение, если текстура не была зарегистрирована
             if (nativeImage != null) {
                 nativeImage.close();
@@ -65,6 +69,7 @@ public class CustomTextureManager {
     }
 
     public static void reset(UUID playerUUID) {
+        SkinMod.LOGGER.info("[SkinMod] Resetting custom skin for {}", playerUUID);
         ResourceLocation oldTexture = PLAYER_TEXTURES.remove(playerUUID);
         PLAYER_MODELS.remove(playerUUID);
         if (oldTexture != null) {
